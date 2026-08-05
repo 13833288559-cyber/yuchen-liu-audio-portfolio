@@ -1,10 +1,23 @@
-import { env } from "cloudflare:workers";
-import { getChatGPTUser } from "../../../chatgpt-auth";
-import { requireOwner } from "../../../../lib/data";
+import { verifyAdmin } from "../../../../lib/data";
+export const dynamic="force-dynamic";
 
-export const dynamic = "force-dynamic";
-async function owner(){const user=await getChatGPTUser();if(!user)return null;try{return {db:await requireOwner(user.email),user}}catch{return null}}
+export async function POST(request:Request){
+  const auth=await verifyAdmin(request);if(!auth)return Response.json({error:"forbidden"},{status:403});
+  const form=await request.formData();const file=form.get("file");
+  if(!(file instanceof File)||file.size===0)return Response.json({error:"file required"},{status:400});
+  if(!/^(audio|video|image)\//.test(file.type))return Response.json({error:"unsupported type"},{status:400});
+  const key=`portfolio/${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g,"_")}`;
+  const {error:uploadError}=await auth.client.storage.from("portfolio").upload(key,file,{contentType:file.type,upsert:false});
+  if(uploadError)return Response.json({error:uploadError.message},{status:500});
+  const row={title:String(form.get("title")||file.name).slice(0,180),category:String(form.get("category")||"其他").slice(0,80),description:String(form.get("description")||"").slice(0,3000),media_key:key,media_type:file.type,file_name:file.name};
+  const {error}=await auth.client.from("portfolio_items").insert(row);if(error){await auth.client.storage.from("portfolio").remove([key]);return Response.json({error:error.message},{status:500})}
+  return Response.json({ok:true});
+}
 
-export async function POST(request:Request){const auth=await owner();if(!auth)return Response.json({error:"forbidden"},{status:403});const form=await request.formData();const file=form.get("file");if(!(file instanceof File)||file.size===0)return Response.json({error:"file required"},{status:400});if(!/^(audio|video|image)\//.test(file.type))return Response.json({error:"unsupported type"},{status:400});const bucket=env.MEDIA as R2Bucket|undefined;if(!bucket)return Response.json({error:"storage unavailable"},{status:503});const key=`portfolio/${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g,"_")}`;await bucket.put(key,await file.arrayBuffer(),{httpMetadata:{contentType:file.type}});const title=String(form.get("title")||file.name).slice(0,180);const category=String(form.get("category")||"其他").slice(0,80);const description=String(form.get("description")||"").slice(0,3000);await auth.db.prepare("INSERT INTO portfolio_items (title,category,description,media_key,media_type,file_name) VALUES (?,?,?,?,?,?)").bind(title,category,description,key,file.type,file.name).run();return Response.json({ok:true})}
-
-export async function DELETE(request:Request){const auth=await owner();if(!auth)return Response.json({error:"forbidden"},{status:403});const id=Number(new URL(request.url).searchParams.get("id"));if(!Number.isInteger(id))return Response.json({error:"bad id"},{status:400});const item=await auth.db.prepare("SELECT media_key AS mediaKey FROM portfolio_items WHERE id=?").bind(id).first<{mediaKey:string}>();if(item){const bucket=env.MEDIA as R2Bucket|undefined;if(bucket)await bucket.delete(item.mediaKey);await auth.db.prepare("DELETE FROM portfolio_items WHERE id=?").bind(id).run()}return Response.json({ok:true})}
+export async function DELETE(request:Request){
+  const auth=await verifyAdmin(request);if(!auth)return Response.json({error:"forbidden"},{status:403});
+  const id=Number(new URL(request.url).searchParams.get("id"));if(!Number.isInteger(id))return Response.json({error:"bad id"},{status:400});
+  const {data:item}=await auth.client.from("portfolio_items").select("media_key").eq("id",id).single();
+  if(item){await auth.client.storage.from("portfolio").remove([item.media_key]);await auth.client.from("portfolio_items").delete().eq("id",id)}
+  return Response.json({ok:true});
+}

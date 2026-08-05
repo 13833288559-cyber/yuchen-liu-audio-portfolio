@@ -1,4 +1,4 @@
-import { env } from "cloudflare:workers";
+import { createClient } from "@supabase/supabase-js";
 
 export type PortfolioItem = { id:number; title:string; category:string; description:string; mediaKey:string; mediaType:string; fileName:string };
 export type SiteData = { name:string; nameEn:string; headline:string; projectIntro:string; about:string; items:PortfolioItem[] };
@@ -11,32 +11,33 @@ export const defaults: Omit<SiteData,"items"> = {
   about: "我在中国传媒大学接受系统的录音工程训练，现于伦敦大学学院研究空间音频与交互声音。我关注声音与玩家行为之间的关系，也享受把创意制作、技术实现和团队协作连成一条可靠的音频管线。",
 };
 
-export async function ensureSchema(db: D1Database) {
-  await db.batch([
-    db.prepare("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)"),
-    db.prepare("CREATE TABLE IF NOT EXISTS portfolio_items (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, category TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', media_key TEXT NOT NULL, media_type TEXT NOT NULL, file_name TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"),
-    db.prepare("CREATE TABLE IF NOT EXISTS site_owner (id INTEGER PRIMARY KEY CHECK (id = 1), email TEXT NOT NULL)"),
-  ]);
+export function supabaseAdmin(){
+  const url=process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key=process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if(!url||!key)return null;
+  return createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}});
+}
+
+export async function verifyAdmin(request:Request){
+  const client=supabaseAdmin();
+  const token=request.headers.get("authorization")?.replace(/^Bearer\s+/i,"");
+  if(!client||!token)return null;
+  const {data,error}=await client.auth.getUser(token);
+  if(error||!data.user)return null;
+  const allowed=process.env.ADMIN_EMAIL?.toLowerCase();
+  if(allowed&&data.user.email?.toLowerCase()!==allowed)return null;
+  return {client,user:data.user};
 }
 
 export async function getPublicData(): Promise<SiteData> {
-  try {
-    const db = env.DB as D1Database | undefined;
-    if (!db) return {...defaults,items:[]};
-    await ensureSchema(db);
-    const settings = await db.prepare("SELECT key, value FROM settings").all<{key:string,value:string}>();
-    const values = Object.fromEntries((settings.results ?? []).map((x:{key:string,value:string}) => [x.key,x.value]));
-    const items = await db.prepare("SELECT id,title,category,description,media_key AS mediaKey,media_type AS mediaType,file_name AS fileName FROM portfolio_items ORDER BY id DESC").all<PortfolioItem>();
-    return {...defaults,...values,items:items.results ?? []};
-  } catch { return {...defaults,items:[]}; }
-}
-
-export async function requireOwner(email:string) {
-  const db = env.DB as D1Database | undefined;
-  if (!db) throw new Error("Database unavailable");
-  await ensureSchema(db);
-  const owner = await db.prepare("SELECT email FROM site_owner WHERE id=1").first<{email:string}>();
-  if (!owner) await db.prepare("INSERT INTO site_owner (id,email) VALUES (1,?)").bind(email).run();
-  else if (owner.email.toLowerCase() !== email.toLowerCase()) throw new Error("FORBIDDEN");
-  return db;
+  try{
+    const client=supabaseAdmin();
+    if(!client)return {...defaults,items:[]};
+    const [{data:settings},{data:items}]=await Promise.all([
+      client.from("settings").select("key,value"),
+      client.from("portfolio_items").select("id,title,category,description,media_key,media_type,file_name").order("id",{ascending:false}),
+    ]);
+    const values=Object.fromEntries((settings??[]).map(x=>[x.key,x.value]));
+    return {...defaults,...values,items:(items??[]).map(x=>({id:x.id,title:x.title,category:x.category,description:x.description,mediaKey:x.media_key,mediaType:x.media_type,fileName:x.file_name}))};
+  }catch{return {...defaults,items:[]}}
 }

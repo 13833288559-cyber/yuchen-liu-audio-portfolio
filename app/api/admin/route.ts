@@ -1,10 +1,17 @@
-import { getChatGPTUser } from "../../chatgpt-auth";
-import { defaults, requireOwner } from "../../../lib/data";
+import { defaults, verifyAdmin } from "../../../lib/data";
+export const dynamic="force-dynamic";
 
-export const dynamic = "force-dynamic";
+export async function GET(request:Request){
+  const auth=await verifyAdmin(request);if(!auth)return Response.json({error:"forbidden"},{status:403});
+  const [{data:settings},{data:items}]=await Promise.all([auth.client.from("settings").select("key,value"),auth.client.from("portfolio_items").select("id,title,category,description,file_name,media_type").order("id",{ascending:false})]);
+  const values=Object.fromEntries((settings??[]).map(x=>[x.key,x.value]));
+  return Response.json({content:{...defaults,...values},items:(items??[]).map(x=>({...x,fileName:x.file_name,mediaType:x.media_type}))});
+}
 
-async function owner(){const user=await getChatGPTUser();if(!user)return null;try{return {db:await requireOwner(user.email),user}}catch{return null}}
-
-export async function GET(){const auth=await owner();if(!auth)return Response.json({error:"forbidden"},{status:403});const settings=await auth.db.prepare("SELECT key,value FROM settings").all<{key:string,value:string}>();const values=Object.fromEntries((settings.results??[]).map((x:{key:string,value:string})=>[x.key,x.value]));const items=await auth.db.prepare("SELECT id,title,category,description,file_name AS fileName,media_type AS mediaType FROM portfolio_items ORDER BY id DESC").all();return Response.json({content:{...defaults,...values},items:items.results??[]})}
-
-export async function PUT(request:Request){const auth=await owner();if(!auth)return Response.json({error:"forbidden"},{status:403});const body=await request.json() as Record<string,unknown>;const allowed=["name","nameEn","headline","projectIntro","about"];const statements=allowed.filter(k=>typeof body[k]==="string").map(k=>auth.db.prepare("INSERT INTO settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(k,String(body[k]).slice(0,6000)));if(statements.length)await auth.db.batch(statements);return Response.json({ok:true})}
+export async function PUT(request:Request){
+  const auth=await verifyAdmin(request);if(!auth)return Response.json({error:"forbidden"},{status:403});
+  const body=await request.json() as Record<string,unknown>;const allowed=["name","nameEn","headline","projectIntro","about"];
+  const rows=allowed.filter(k=>typeof body[k]==="string").map(key=>({key,value:String(body[key]).slice(0,6000)}));
+  const {error}=await auth.client.from("settings").upsert(rows);if(error)return Response.json({error:error.message},{status:500});
+  return Response.json({ok:true});
+}
