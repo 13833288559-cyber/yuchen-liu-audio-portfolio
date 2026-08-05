@@ -19,6 +19,7 @@ export const defaults={
  aboutKicker:"ABOUT",aboutTitle:"录音工程出身，专注游戏声音。",about:"我在中国传媒大学接受系统的录音工程训练，现于伦敦大学学院研究空间音频与交互声音。我关注声音与玩家行为之间的关系，也享受把创意制作、技术实现和团队协作连成一条可靠的音频管线。",location:"BASED IN LONDON",
  edu1Date:"2025 — 至今",edu1School:"University College London",edu1Text:"MA Designing Audio Experiences",edu2Date:"2021 — 2025",edu2School:"中国传媒大学",edu2Text:"录音艺术（录音工程方向）· GPA 3.5",skills:"Wwise, Unity, Unreal, Pro Tools, Nuendo, REAPER, Dante L3, IELTS 7.0",
  contactKicker:"CONTACT",contactTitleBefore:"一起做些",contactTitleAccent:"值得被听见",contactTitleAfter:"的作品。",contactIntro:"游戏音频、声音设计及其他音频项目合作，欢迎联系。",email:"cracrasteve@163.com",phone:"+86 138 3328 8559",portfolioLabel:"查看现有作品集 ↗",portfolioUrl:"https://pan.baidu.com/s/1vIB5QP8jYiN3ApUQpo2nWA",footerText:"GAME AUDIO · SOUND DESIGN",
+ additionalProjects:"[]",additionalExperiences:"[]",
 };
 export type Content=typeof defaults;export type SiteData=Content&{items:PortfolioItem[]};
 export const contentKeys=Object.keys(defaults) as Array<keyof Content>;
