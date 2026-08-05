@@ -1,4 +1,4 @@
-import { defaults, verifyAdmin } from "../../../lib/data";
+import { contentKeys, defaults, verifyAdmin } from "../../../lib/data";
 export const dynamic="force-dynamic";
 
 export async function GET(request:Request){
@@ -10,8 +10,8 @@ export async function GET(request:Request){
 
 export async function PUT(request:Request){
   const auth=await verifyAdmin(request);if(!auth)return Response.json({error:"forbidden"},{status:403});
-  const body=await request.json() as Record<string,unknown>;const allowed=["name","nameEn","headline","projectIntro","about"];
-  const rows=allowed.filter(k=>typeof body[k]==="string").map(key=>({key,value:String(body[key]).slice(0,6000)}));
+  const body=await request.json() as Record<string,unknown>;
+  const rows=contentKeys.filter(k=>typeof body[k]==="string").map(key=>({key,value:String(body[key]).slice(0,6000)}));
   const {error}=await auth.client.from("settings").upsert(rows);if(error)return Response.json({error:error.message},{status:500});
   return Response.json({ok:true});
 }
