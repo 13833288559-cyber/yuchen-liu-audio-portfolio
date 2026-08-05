@@ -3,7 +3,7 @@ export const dynamic="force-dynamic";
 
 export async function GET(request:Request){
   const auth=await verifyAdmin(request);if(!auth)return Response.json({error:"forbidden"},{status:403});
-  const [{data:settings},{data:items}]=await Promise.all([auth.client.from("settings").select("key,value"),auth.client.from("portfolio_items").select("id,title,category,description,file_name,media_type").order("id",{ascending:false})]);
+  const [{data:settings},{data:items}]=await Promise.all([auth.client.from("settings").select("key,value"),auth.client.from("portfolio_items").select("id,title,category,description,file_name,media_type,placement").order("id",{ascending:false})]);
   const values=Object.fromEntries((settings??[]).map(x=>[x.key,x.value]));
   return Response.json({content:{...defaults,...values},items:(items??[]).map(x=>({...x,fileName:x.file_name,mediaType:x.media_type}))});
 }

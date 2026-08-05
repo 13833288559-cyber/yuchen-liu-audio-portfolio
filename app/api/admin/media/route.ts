@@ -9,7 +9,8 @@ export async function POST(request:Request){
   const key=`portfolio/${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g,"_")}`;
   const {error:uploadError}=await auth.client.storage.from("portfolio").upload(key,file,{contentType:file.type,upsert:false});
   if(uploadError)return Response.json({error:uploadError.message},{status:500});
-  const row={title:String(form.get("title")||file.name).slice(0,180),category:String(form.get("category")||"其他").slice(0,80),description:String(form.get("description")||"").slice(0,3000),media_key:key,media_type:file.type,file_name:file.name};
+  const placement=String(form.get("placement")||"archive").slice(0,40);
+  const row={title:String(form.get("title")||file.name).slice(0,180),category:String(form.get("category")||"其他").slice(0,80),description:String(form.get("description")||"").slice(0,3000),media_key:key,media_type:file.type,file_name:file.name,placement};
   const {error}=await auth.client.from("portfolio_items").insert(row);if(error){await auth.client.storage.from("portfolio").remove([key]);return Response.json({error:error.message},{status:500})}
   return Response.json({ok:true});
 }

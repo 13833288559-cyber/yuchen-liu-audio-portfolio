@@ -11,6 +11,7 @@ create table if not exists public.portfolio_items (
   media_key text not null,
   media_type text not null,
   file_name text not null,
+  placement text not null default 'archive',
   created_at timestamptz not null default now()
 );
 
@@ -20,5 +21,7 @@ alter table public.portfolio_items enable row level security;
 insert into storage.buckets (id, name, public, file_size_limit)
 values ('portfolio', 'portfolio', true, 524288000)
 on conflict (id) do update set public = true, file_size_limit = 524288000;
+
+alter table public.portfolio_items add column if not exists placement text not null default 'archive';
 
 -- 网站的服务器端使用 service role 访问数据；浏览器端无法直接改写表或存储桶。

@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 
-export type PortfolioItem={id:number;title:string;category:string;description:string;mediaKey:string;mediaType:string;fileName:string};
+export type PortfolioItem={id:number;title:string;category:string;description:string;mediaKey:string;mediaType:string;fileName:string;placement:string};
 
 export const defaults={
  name:"刘禹辰",nameEn:"YUCHEN LIU",role:"GAME AUDIO DESIGNER · SOUND DESIGNER",
@@ -25,4 +25,4 @@ export const contentKeys=Object.keys(defaults) as Array<keyof Content>;
 
 export function supabaseAdmin(){const url=process.env.NEXT_PUBLIC_SUPABASE_URL;const key=process.env.SUPABASE_SERVICE_ROLE_KEY;if(!url||!key)return null;return createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}})}
 export async function verifyAdmin(request:Request){const client=supabaseAdmin();const token=request.headers.get("authorization")?.replace(/^Bearer\s+/i,"");if(!client||!token)return null;const {data,error}=await client.auth.getUser(token);if(error||!data.user)return null;const allowed=process.env.ADMIN_EMAIL?.toLowerCase();if(allowed&&data.user.email?.toLowerCase()!==allowed)return null;return{client,user:data.user}}
-export async function getPublicData():Promise<SiteData>{try{const client=supabaseAdmin();if(!client)return{...defaults,items:[]};const[{data:settings},{data:items}]=await Promise.all([client.from("settings").select("key,value"),client.from("portfolio_items").select("id,title,category,description,media_key,media_type,file_name").order("id",{ascending:false})]);const values=Object.fromEntries((settings??[]).map(x=>[x.key,x.value]));return{...defaults,...values,items:(items??[]).map(x=>({id:x.id,title:x.title,category:x.category,description:x.description,mediaKey:x.media_key,mediaType:x.media_type,fileName:x.file_name}))}}catch{return{...defaults,items:[]}}}
+export async function getPublicData():Promise<SiteData>{try{const client=supabaseAdmin();if(!client)return{...defaults,items:[]};const[{data:settings},{data:items}]=await Promise.all([client.from("settings").select("key,value"),client.from("portfolio_items").select("id,title,category,description,media_key,media_type,file_name,placement").order("id",{ascending:false})]);const values=Object.fromEntries((settings??[]).map(x=>[x.key,x.value]));return{...defaults,...values,items:(items??[]).map(x=>({id:x.id,title:x.title,category:x.category,description:x.description,mediaKey:x.media_key,mediaType:x.media_type,fileName:x.file_name,placement:x.placement||"archive"}))}}catch{return{...defaults,items:[]}}}
