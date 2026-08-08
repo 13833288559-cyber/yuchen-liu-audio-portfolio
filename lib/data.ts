@@ -27,9 +27,9 @@ export const contentKeys=Object.keys(defaults) as Array<keyof Content>;
 
 let instance:ReturnType<typeof cloudbase.init>|null=null;
 export function cloudbaseAdmin(){
- const env=process.env.CLOUDBASE_ENV_ID;const accessKey=process.env.CLOUDBASE_APIKEY;
- if(!env||!accessKey)return null;
- if(!instance)instance=cloudbase.init({env,region:process.env.CLOUDBASE_REGION||"ap-shanghai",accessKey});
+ const env=process.env.CLOUDBASE_ENV_ID||process.env.TCB_ENV_ID||"yuchen-audio-portfolio-d19acc0b9";
+ const accessKey=process.env.CLOUDBASE_APIKEY||process.env.TCB_API_KEY;
+ if(!instance)instance=cloudbase.init({env,region:process.env.CLOUDBASE_REGION||"ap-shanghai",...(accessKey?{accessKey}:{})});
  return instance;
 }
 
